@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+cd "$(dirname "$0")/.."
+
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/ansi-colorize-nvim.XXXXXX")"
+trap 'rm -rf "$tmp"' EXIT
+chmod 700 "$tmp"
+
+NVIM_LOG_FILE="$tmp/nvim.log" XDG_RUNTIME_DIR="$tmp" \
+  nvim --headless -u NONE -i NONE -c "luafile tests/ansi_colorize_spec.lua" -c qa
