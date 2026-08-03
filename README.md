@@ -1,17 +1,59 @@
 # term-color-parser.nvim
 
-Colorize ANSI SGR terminal output in regular Neovim buffers.
+Colorize ANSI terminal output in regular Neovim buffers.
 
-## Install
+Many CLIs print color with ANSI SGR escape sequences like `\27[31m`. Those
+sequences are useful in a terminal, but they are noisy in normal Neovim buffers.
+This plugin parses them and applies native Neovim highlights.
 
-With Lazy.nvim:
+## Features
+
+- Pure Lua, no runtime dependencies.
+- `:AnsiColorize [bufnr]` command for quick use.
+- Lua API for plugin integrations.
+- Conceal mode: keep ANSI codes in the buffer but hide them and highlight text.
+- Strip mode: remove ANSI codes from the buffer and highlight the cleaned text.
+- Optional Overseer.nvim component for task output buffers.
+- Supports reset, bold, italic, underline, reverse, 16-color, 256-color, and
+  truecolor foreground/background SGR sequences.
+
+## Requirements
+
+- Neovim 0.9 or newer.
+- `conceallevel` support for non-destructive conceal mode.
+
+## Installation
+
+With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
-  "yourname/term-color-parser.nvim",
+  "OWNER/term-color-parser.nvim",
   cmd = "AnsiColorize",
   config = true,
 }
+```
+
+Replace `OWNER` with the GitHub owner after publishing the plugin.
+
+## Configuration
+
+The default setup is enough for manual use:
+
+```lua
+require("ansi-colorize").setup()
+```
+
+Enable the optional Overseer template hook:
+
+```lua
+require("ansi-colorize").setup({
+  overseer = {
+    enabled = true,
+    mode = "conceal", -- "conceal" or "strip"
+    on = "output",    -- "output" or "complete"
+  },
+})
 ```
 
 ## Usage
@@ -22,35 +64,33 @@ Colorize the current buffer without changing its text:
 :AnsiColorize
 ```
 
-Colorize another buffer:
+Colorize a specific buffer:
 
 ```vim
 :AnsiColorize 12
 ```
 
-Remove ANSI escape sequences from the buffer and apply highlights to the
-remaining text:
+Strip ANSI codes and colorize the remaining text:
 
 ```vim
 :AnsiColorize!
 ```
 
-Lua API:
+## Lua API
 
 ```lua
 local ansi = require("ansi-colorize")
 
-ansi.colorize(0) -- conceal escape codes and highlight text
-ansi.strip(0)    -- remove escape codes and highlight text
+ansi.colorize(0) -- conceal ANSI codes and highlight text
+ansi.strip(0)    -- remove ANSI codes and highlight text
 ansi.clear(0)    -- remove plugin highlights
 ```
 
-Supported styling includes reset, bold, italic, underline, reverse, 16-color,
-256-color, and truecolor foreground/background SGR sequences.
+`0`, `nil`, or an omitted buffer number means the current buffer.
 
 ## Overseer.nvim
 
-To colorize Overseer output buffers, add the bundled component to Overseer:
+For all Overseer tasks, add the component to Overseer's default alias:
 
 ```lua
 require("overseer").setup({
@@ -65,38 +105,29 @@ require("overseer").setup({
 })
 ```
 
-Configure the component per task or alias:
+Use strip mode if you prefer permanent cleanup:
 
 ```lua
-{ "ansi_colorize", mode = "conceal", on = "output" }
 { "ansi_colorize", mode = "strip", on = "complete" }
 ```
 
-You can also ask this plugin to add the component to Overseer templates:
+The `setup({ overseer = ... })` helper uses Overseer's template hook and only
+affects tasks created from templates. For every task, prefer
+`component_aliases.default`.
 
-```lua
-require("ansi-colorize").setup({
-  overseer = {
-    enabled = true,
-    mode = "conceal",
-    on = "output",
-  },
-})
-```
+## Development
 
-The setup hook only affects tasks created from templates. For every Overseer
-task, prefer the `component_aliases.default` configuration above.
-
-## Tests
-
-Run the integration tests with:
+Run the integration tests:
 
 ```sh
 make test
 ```
 
-or directly:
+or:
 
 ```sh
 sh scripts/test
 ```
+
+The test suite runs in headless Neovim and covers the command, Lua API, parser,
+buffer edits, extmark cleanup, and Overseer adapter.
