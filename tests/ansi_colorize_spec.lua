@@ -30,6 +30,8 @@ local function has_detail(bufnr, key, value)
   return false
 end
 
+assert_eq(require("term-color-parser"), ansi, "lazy.nvim main module alias")
+
 local bufnr = new_buf({ "\27[31mred\27[0m plain \27[38;5;45mblue\27[0m" })
 ansi.colorize(bufnr)
 assert_eq(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)[1], "\27[31mred\27[0m plain \27[38;5;45mblue\27[0m", "conceal keeps text")
