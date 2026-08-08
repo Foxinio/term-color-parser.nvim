@@ -1,0 +1,144 @@
+*term-color-parser.nvim*        Colorize ANSI terminal output in buffers
+
+==============================================================================
+CONTENTS                                      *term-color-parser-contents*
+
+1. Introduction                         |term-color-parser|
+2. Requirements                         |term-color-parser-requirements|
+3. Commands                             |term-color-parser-commands|
+4. Configuration                        |term-color-parser-configuration|
+5. Lua API                              |term-color-parser-api|
+6. Overseer.nvim                        |term-color-parser-overseer|
+
+==============================================================================
+INTRODUCTION                                  *term-color-parser*
+
+term-color-parser.nvim colorizes ANSI SGR terminal output in regular Neovim
+buffers.
+
+Many CLIs print color with ANSI SGR escape sequences such as "\27[31m". Those
+sequences are useful in a terminal, but noisy in normal buffers. This plugin
+parses them and applies native Neovim highlights.
+
+Features:
+
+- Pure Lua, no runtime dependencies.
+- |:AnsiColorize| command for quick use.
+- Lua API for plugin integrations.
+- Conceal mode keeps ANSI codes in the buffer, hides them, and highlights text.
+- Strip mode removes ANSI codes and highlights the cleaned text.
+- Optional Overseer.nvim component for task output buffers.
+- Supports reset, bold, italic, underline, reverse, 16-color, 256-color, and
+  truecolor foreground/background SGR sequences.
+
+==============================================================================
+REQUIREMENTS                                  *term-color-parser-requirements*
+
+- Neovim 0.9 or newer.
+- 'conceallevel' support for non-destructive conceal mode.
+
+==============================================================================
+COMMANDS                                      *term-color-parser-commands*
+
+                                                        *:AnsiColorize*
+:AnsiColorize [bufnr]
+        Colorize ANSI SGR escape sequences in {bufnr}.
+
+        When {bufnr} is omitted, the current buffer is used.
+
+                                                        *:AnsiColorize!*
+:AnsiColorize! [bufnr]
+        Strip ANSI SGR escape sequences from {bufnr}, then highlight the
+        remaining text.
+
+==============================================================================
+CONFIGURATION                                 *term-color-parser-configuration*
+
+With lazy.nvim:
+>
+  {
+    "OWNER/term-color-parser.nvim",
+    cmd = "AnsiColorize",
+    config = true,
+  }
+<
+
+The default setup is enough for manual use:
+>
+  require("ansi-colorize").setup()
+<
+
+Enable the optional Overseer template hook:
+>
+  require("ansi-colorize").setup({
+    overseer = {
+      enabled = true,
+      mode = "conceal", -- "conceal" or "strip"
+      on = "output",    -- "output" or "complete"
+    },
+  })
+<
+
+==============================================================================
+LUA API                                       *term-color-parser-api*
+
+The public module is "ansi-colorize":
+>
+  local ansi = require("ansi-colorize")
+<
+
+                                                        *ansi-colorize.setup()*
+setup({opts})
+        Configure the plugin.
+
+        Supported options:
+        - overseer: false, or an Overseer setup table. See
+          |term-color-parser-overseer|.
+
+                                                    *ansi-colorize.colorize()*
+colorize({bufnr}, {opts})
+        Colorize ANSI SGR escape sequences in {bufnr}.
+
+        {bufnr} may be 0, nil, or omitted to use the current buffer.
+
+        Supported options:
+        - strip: true removes ANSI codes before highlighting. The default keeps
+          ANSI codes concealed in the buffer.
+
+                                                       *ansi-colorize.strip()*
+strip({bufnr})
+        Remove ANSI SGR escape sequences from {bufnr}, then highlight the
+        remaining text.
+
+                                                       *ansi-colorize.clear()*
+clear({bufnr})
+        Remove plugin highlights from {bufnr}.
+
+==============================================================================
+OVERSEER.NVIM                                 *term-color-parser-overseer*
+
+For all Overseer tasks, add the component to Overseer's default alias:
+>
+  require("overseer").setup({
+    component_aliases = {
+      default = {
+        "on_exit_set_status",
+        "on_complete_notify",
+        { "on_complete_dispose", require_view = { "SUCCESS", "FAILURE" } },
+        { "ansi_colorize", mode = "conceal", on = "output" },
+      },
+    },
+  })
+<
+
+Use strip mode if you prefer permanent cleanup:
+>
+  { "ansi_colorize", mode = "strip", on = "complete" }
+<
+
+The setup({ overseer = ... }) helper uses Overseer's template hook and only
+affects tasks created from templates. For every task, prefer
+component_aliases.default.
+
+==============================================================================
+ vim:tw=78:ts=8:noet:ft=help:norl:
