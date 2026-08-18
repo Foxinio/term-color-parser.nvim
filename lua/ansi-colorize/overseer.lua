@@ -11,14 +11,26 @@ function M.component(opts)
 end
 
 function M.preserve_overseer_ansi()
+  -- ponytail: Overseer has no buffer-only ANSI hook; remove this patch if it adds one.
   local ok, util = pcall(require, "overseer.util")
-  if not ok or util.__ansi_colorize_patched then
+  if not ok or util.__ansi_colorize_patched
+      or type(util.clean_job_line) ~= "function"
+      or type(util.get_stdout_line_iter) ~= "function" then
     return false
   end
+
+  local clean_job_line = util.clean_job_line
+  local get_stdout_line_iter = util.get_stdout_line_iter
 
   util.__ansi_colorize_patched = true
   util.clean_job_line = function(str)
     return str:gsub("\r$", "")
+  end
+  util.get_stdout_line_iter = function()
+    local iter = get_stdout_line_iter()
+    return function(data)
+      return vim.tbl_map(clean_job_line, iter(data))
+    end
   end
 
   return true

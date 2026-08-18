@@ -112,8 +112,9 @@ Use strip mode if you prefer permanent cleanup:
 ```
 
 The `setup({ overseer = ... })` helper preserves ANSI in non-terminal output
-before adding the component through Overseer's template hook. It only adds the
-component to tasks created from templates; for every task, add it to
+while keeping parsed output such as quickfix entries clean, then adds the
+component through Overseer's template hook. It only adds the component to tasks
+created from templates; for every task, add it to
 `component_aliases.default` as shown above. Set `preserve_ansi = false` to keep
 Overseer's default output cleaning.
 
