@@ -28,8 +28,8 @@ Features:
 - Conceal mode keeps ANSI codes in the buffer, hides them, and highlights text.
 - Strip mode removes ANSI codes and highlights the cleaned text.
 - Optional Overseer.nvim component for task output buffers.
-- Supports reset, bold, italic, underline, reverse, 16-color, 256-color, and
-  truecolor foreground/background SGR sequences.
+- Supports reset, bold, italic, underline styles and colors, strikethrough,
+  reverse, 16-color, 256-color, and truecolor SGR sequences.
 
 ==============================================================================
 REQUIREMENTS                                  *term-color-parser-requirements*

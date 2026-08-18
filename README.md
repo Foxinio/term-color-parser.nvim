@@ -14,8 +14,8 @@ This plugin parses them and applies native Neovim highlights.
 - Conceal mode: keep ANSI codes in the buffer but hide them and highlight text.
 - Strip mode: remove ANSI codes from the buffer and highlight the cleaned text.
 - Optional Overseer.nvim component for task output buffers.
-- Supports reset, bold, italic, underline, reverse, 16-color, 256-color, and
-  truecolor foreground/background SGR sequences.
+- Supports reset, bold, italic, underline styles and colors, strikethrough,
+  reverse, 16-color, 256-color, and truecolor SGR sequences.
 
 ## Requirements
 

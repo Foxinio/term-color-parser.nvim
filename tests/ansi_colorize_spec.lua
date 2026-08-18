@@ -30,6 +30,16 @@ local function has_detail(bufnr, key, value)
   return false
 end
 
+local function has_highlight(bufnr, key, value)
+  for _, mark in ipairs(marks(bufnr)) do
+    local group = mark[4].hl_group
+    if group and vim.api.nvim_get_hl(0, { name = group })[key] == value then
+      return true
+    end
+  end
+  return false
+end
+
 assert_eq(require("term-color-parser"), ansi, "lazy.nvim main module alias")
 
 local bufnr = new_buf({ "\27[31mred\27[0m plain \27[38;5;45mblue\27[0m" })
@@ -48,6 +58,12 @@ assert_eq(vim.api.nvim_buf_get_lines(stripped, 0, -1, false)[1], "xstyledy", "st
 local empty_param = new_buf({ "\27[;31mred\27[0m" })
 ansi.strip(empty_param)
 assert_eq(vim.api.nvim_buf_get_lines(empty_param, 0, -1, false)[1], "red", "empty sgr params are accepted")
+
+local visual_styles = new_buf({ "\27[9mstrike\27[29m \27[4:3;58;2;1;2;3mcurly\27[0m" })
+ansi.colorize(visual_styles)
+assert(has_highlight(visual_styles, "strikethrough", true), "strikethrough is highlighted")
+assert(has_highlight(visual_styles, "undercurl", true), "underline styles are highlighted")
+assert(has_highlight(visual_styles, "sp", 0x010203), "underline colors are highlighted")
 
 ansi.clear(stripped)
 assert_eq(#marks(stripped), 0, "clear removes extmarks")

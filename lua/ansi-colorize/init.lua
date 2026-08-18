@@ -55,8 +55,10 @@ local function parse_params(raw)
     return { 0 }
   end
   local params = {}
-  for part in (raw .. ";"):gmatch("(.-)[;:]") do
+  params._colon = {}
+  for part, separator in (raw .. ";"):gmatch("(.-)([;:])") do
     params[#params + 1] = tonumber(part) or 0
+    params._colon[#params] = separator == ":"
   end
   return #params == 0 and { 0 } or params
 end
@@ -65,9 +67,11 @@ local function copy_state(state)
   return {
     fg = state.fg,
     bg = state.bg,
+    sp = state.sp,
     bold = state.bold,
     italic = state.italic,
     underline = state.underline,
+    strikethrough = state.strikethrough,
     reverse = state.reverse,
   }
 end
@@ -77,15 +81,25 @@ local function apply_sgr(state, params)
   while i <= #params do
     local p = params[i]
     if p == 0 then
-      state.fg, state.bg, state.bold, state.italic, state.underline, state.reverse = nil, nil, nil, nil, nil, nil
+      state.fg, state.bg, state.sp = nil, nil, nil
+      state.bold, state.italic, state.underline, state.strikethrough, state.reverse = nil, nil, nil, nil, nil
     elseif p == 1 then
       state.bold = true
     elseif p == 3 then
       state.italic = true
     elseif p == 4 then
-      state.underline = true
+      if params._colon and params._colon[i] then
+        state.underline = ({ [1] = true, [2] = "double", [3] = "curl", [4] = "dotted", [5] = "dashed" })[params[i + 1]]
+        i = i + 1
+      else
+        state.underline = true
+      end
     elseif p == 7 then
       state.reverse = true
+    elseif p == 9 then
+      state.strikethrough = true
+    elseif p == 21 then
+      state.underline = "double"
     elseif p == 22 then
       state.bold = nil
     elseif p == 23 then
@@ -94,10 +108,14 @@ local function apply_sgr(state, params)
       state.underline = nil
     elseif p == 27 then
       state.reverse = nil
+    elseif p == 29 then
+      state.strikethrough = nil
     elseif p == 39 then
       state.fg = nil
     elseif p == 49 then
       state.bg = nil
+    elseif p == 59 then
+      state.sp = nil
     elseif p >= 30 and p <= 37 then
       state.fg = color16(p - 30)
     elseif p >= 40 and p <= 47 then
@@ -106,22 +124,26 @@ local function apply_sgr(state, params)
       state.fg = color16(p - 90 + 8)
     elseif p >= 100 and p <= 107 then
       state.bg = color16(p - 100 + 8)
-    elseif (p == 38 or p == 48) and params[i + 1] == 5 then
+    elseif (p == 38 or p == 48 or p == 58) and params[i + 1] == 5 then
       local color = color256(params[i + 2] or -1)
       if p == 38 then
         state.fg = color
-      else
+      elseif p == 48 then
         state.bg = color
+      else
+        state.sp = color
       end
       i = i + 2
-    elseif (p == 38 or p == 48) and params[i + 1] == 2 then
+    elseif (p == 38 or p == 48 or p == 58) and params[i + 1] == 2 then
       local r, g, b = params[i + 2], params[i + 3], params[i + 4]
       if r and g and b then
         local color = string.format("#%02x%02x%02x", r % 256, g % 256, b % 256)
         if p == 38 then
           state.fg = color
-        else
+        elseif p == 48 then
           state.bg = color
+        else
+          state.sp = color
         end
       end
       i = i + 4
@@ -134,15 +156,17 @@ local function state_key(state)
   return table.concat({
     state.fg or "",
     state.bg or "",
+    state.sp or "",
     state.bold and "b" or "",
     state.italic and "i" or "",
-    state.underline and "u" or "",
+    state.underline == true and "u" or state.underline or "",
+    state.strikethrough and "s" or "",
     state.reverse and "r" or "",
   }, "_")
 end
 
 local function hl_group(state)
-  if not (state.fg or state.bg or state.bold or state.italic or state.underline or state.reverse) then
+  if not (state.fg or state.bg or state.sp or state.bold or state.italic or state.underline or state.strikethrough or state.reverse) then
     return nil
   end
   local key = state_key(state):gsub("[^%w_]", "")
@@ -151,9 +175,15 @@ local function hl_group(state)
     vim.api.nvim_set_hl(0, name, {
       fg = state.fg,
       bg = state.bg,
+      sp = state.sp,
       bold = state.bold,
       italic = state.italic,
-      underline = state.underline,
+      underline = state.underline == true,
+      undercurl = state.underline == "curl",
+      underdouble = state.underline == "double",
+      underdotted = state.underline == "dotted",
+      underdashed = state.underline == "dashed",
+      strikethrough = state.strikethrough,
       reverse = state.reverse,
     })
     groups[name] = true
