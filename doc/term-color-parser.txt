@@ -72,7 +72,7 @@ Enable the optional Overseer template hook:
 >
   require("ansi-colorize").setup({
     overseer = {
-      enabled = true,
+      preserve_ansi = true, -- keep ANSI until this plugin colorizes it
       mode = "conceal", -- "conceal" or "strip"
       on = "output",    -- "output" or "complete"
     },
@@ -136,9 +136,11 @@ Use strip mode if you prefer permanent cleanup:
   { "ansi_colorize", mode = "strip", on = "complete" }
 <
 
-The setup({ overseer = ... }) helper uses Overseer's template hook and only
-affects tasks created from templates. For every task, prefer
-component_aliases.default.
+The setup({ overseer = ... }) helper preserves ANSI in non-terminal output
+before adding the component through Overseer's template hook. It only adds the
+component to tasks created from templates. For every task, add it to
+component_aliases.default. Set preserve_ansi = false to keep Overseer's default
+output cleaning.
 
 ==============================================================================
  vim:tw=78:ts=8:noet:ft=help:norl:

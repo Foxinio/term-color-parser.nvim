@@ -90,6 +90,11 @@ end)
 assert_eq(vim.api.nvim_buf_get_lines(overseer_strip, 0, -1, false)[1], "cyan", "overseer component supports strip mode")
 
 local hooks = {}
+package.loaded["overseer.util"] = {
+  clean_job_line = function(str)
+    return str:gsub("\27%[[%d;]*m", ""):gsub("\r$", "")
+  end,
+}
 package.loaded.overseer = {
   add_template_hook = function(filter, callback)
     hooks[#hooks + 1] = { filter = filter, callback = callback }
@@ -98,6 +103,7 @@ package.loaded.overseer = {
 
 local ok = require("ansi-colorize.overseer").setup({ mode = "strip", filter = { module = "^make$" } })
 assert(ok, "overseer setup reports success when overseer is available")
+assert_eq(package.loaded["overseer.util"].clean_job_line("\27[31mred\27[0m\r"), "\27[31mred\27[0m", "overseer setup preserves ansi")
 assert_eq(#hooks, 1, "overseer setup registers one template hook")
 assert_eq(hooks[1].filter.module, "^make$", "overseer setup forwards filter")
 
