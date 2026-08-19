@@ -88,10 +88,20 @@ local command_bang = new_buf({ "\27[34mblue\27[0m" })
 vim.cmd("AnsiColorize!")
 assert_eq(vim.api.nvim_buf_get_lines(command_bang, 0, -1, false)[1], "blue", "bang command strips current buffer")
 
+local preserve_calls = 0
+package.loaded["ansi-colorize.overseer"] = {
+  preserve_overseer_ansi = function()
+    preserve_calls = preserve_calls + 1
+  end,
+}
 local overseer_component = dofile("lua/overseer/component/ansi_colorize.lua")
 local overseer_buf = new_buf({ "\27[35mmagenta\27[0m" })
 local fake_task = { get_bufnr = function() return overseer_buf end }
 overseer_component.constructor({ mode = "conceal", on = "output" }):on_output(fake_task)
+assert_eq(preserve_calls, 1, "overseer component enables ansi preservation")
+overseer_component.constructor({ preserve_ansi = false })
+assert_eq(preserve_calls, 1, "overseer component can disable ansi preservation")
+package.loaded["ansi-colorize.overseer"] = nil
 vim.wait(1000, function()
   return has_detail(overseer_buf, "conceal", "")
 end)

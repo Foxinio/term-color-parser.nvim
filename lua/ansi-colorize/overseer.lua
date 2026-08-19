@@ -3,11 +3,12 @@ local M = {}
 local defaults = {
   mode = "conceal",
   on = "output",
+  preserve_ansi = true,
 }
 
 function M.component(opts)
   opts = vim.tbl_extend("force", defaults, opts or {})
-  return { "ansi_colorize", mode = opts.mode, on = opts.on }
+  return { "ansi_colorize", mode = opts.mode, on = opts.on, preserve_ansi = opts.preserve_ansi }
 end
 
 function M.preserve_overseer_ansi()
@@ -38,7 +39,7 @@ function M.preserve_overseer_ansi()
 
   local qf_ok, components = pcall(require, "overseer.component")
   local qf = qf_ok and type(components.get) == "function" and components.get("on_output_quickfix")
-  if qf_ok and type(qf.constructor) == "function" and not qf.__ansi_colorize_patched then
+  if type(qf) == "table" and type(qf.constructor) == "function" and not qf.__ansi_colorize_patched then
     local constructor = qf.constructor
     qf.__ansi_colorize_patched = true
     qf.constructor = function(params)

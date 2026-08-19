@@ -33,9 +33,17 @@ return {
       default = "output",
       desc = "When to colorize the output buffer",
     },
+    preserve_ansi = {
+      type = "boolean",
+      default = true,
+      desc = "Preserve ANSI in non-terminal Overseer output",
+    },
   },
   constructor = function(params)
-    params = vim.tbl_extend("force", { mode = "conceal", on = "output" }, params or {})
+    params = vim.tbl_extend("force", { mode = "conceal", on = "output", preserve_ansi = true }, params or {})
+    if params.preserve_ansi then
+      require("ansi-colorize.overseer").preserve_overseer_ansi()
+    end
 
     return {
       on_start = function(_, task)
