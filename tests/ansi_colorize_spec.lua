@@ -116,6 +116,20 @@ fake_overseer_util.get_stdout_line_iter = function()
   end
 end
 package.loaded["overseer.util"] = fake_overseer_util
+local fake_quickfix = {
+  constructor = function()
+    return {
+      on_pre_result = function(_, task)
+        return vim.api.nvim_buf_get_lines(task:get_bufnr(), 0, -1, true)[1]
+      end,
+    }
+  end,
+}
+package.loaded["overseer.component"] = {
+  get = function()
+    return fake_quickfix
+  end,
+}
 package.loaded.overseer = {
   add_template_hook = function(filter, callback)
     hooks[#hooks + 1] = { filter = filter, callback = callback }
@@ -126,6 +140,12 @@ local ok = require("ansi-colorize.overseer").setup({ mode = "strip", filter = { 
 assert(ok, "overseer setup reports success when overseer is available")
 assert_eq(package.loaded["overseer.util"].clean_job_line("\27[31mred\27[0m\r"), "\27[31mred\27[0m", "overseer setup preserves ansi")
 assert_eq(package.loaded["overseer.util"].get_stdout_line_iter()({ "\27[31mfile.lua:1: error\27[0m\r" })[1], "file.lua:1: error", "overseer parsers receive clean lines")
+local quickfix_buf = new_buf({ "\27[4:3mfile.lua:1: error\27[0m" })
+local quickfix_task = { get_bufnr = function() return quickfix_buf end }
+local quickfix = package.loaded["overseer.component"].get()
+assert_eq(quickfix.constructor({ tail = false }).on_pre_result({}, quickfix_task), "file.lua:1: error", "completed quickfix receives clean lines")
+assert_eq(vim.api.nvim_buf_get_lines(quickfix_buf, 0, -1, true)[1], "\27[4:3mfile.lua:1: error\27[0m", "quickfix cleaning preserves output buffer")
+assert_eq(quickfix.constructor({ tail = true }).on_pre_result({}, quickfix_task), nil, "tailed quickfix is not overwritten from output buffer")
 assert_eq(#hooks, 1, "overseer setup registers one template hook")
 assert_eq(hooks[1].filter.module, "^make$", "overseer setup forwards filter")
 

@@ -19,8 +19,11 @@ function M.preserve_overseer_ansi()
     return false
   end
 
-  local clean_job_line = util.clean_job_line
+  local overseer_clean_job_line = util.clean_job_line
   local get_stdout_line_iter = util.get_stdout_line_iter
+  local function clean_job_line(str)
+    return (overseer_clean_job_line(str):gsub("\27%[[%d;:]*m", ""))
+  end
 
   util.__ansi_colorize_patched = true
   util.clean_job_line = function(str)
@@ -30,6 +33,41 @@ function M.preserve_overseer_ansi()
     local iter = get_stdout_line_iter()
     return function(data)
       return vim.tbl_map(clean_job_line, iter(data))
+    end
+  end
+
+  local qf_ok, components = pcall(require, "overseer.component")
+  local qf = qf_ok and type(components.get) == "function" and components.get("on_output_quickfix")
+  if qf_ok and type(qf.constructor) == "function" and not qf.__ansi_colorize_patched then
+    local constructor = qf.constructor
+    qf.__ansi_colorize_patched = true
+    qf.constructor = function(params)
+      local component = constructor(params)
+      local on_pre_result = component.on_pre_result
+      component.on_pre_result = function(self, task)
+        local bufnr = task:get_bufnr()
+        if not bufnr or vim.bo[bufnr].buftype == "terminal" then
+          return on_pre_result(self, task)
+        elseif params.tail then
+          return
+        end
+
+        local clean_bufnr = vim.api.nvim_create_buf(false, true)
+        local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, true)
+        vim.api.nvim_buf_set_lines(clean_bufnr, 0, -1, true, vim.tbl_map(clean_job_line, lines))
+        local clean_task = setmetatable({
+          get_bufnr = function()
+            return clean_bufnr
+          end,
+        }, { __index = task })
+        local ok, result = pcall(on_pre_result, self, clean_task)
+        vim.api.nvim_buf_delete(clean_bufnr, { force = true })
+        if not ok then
+          error(result)
+        end
+        return result
+      end
+      return component
     end
   end
 
