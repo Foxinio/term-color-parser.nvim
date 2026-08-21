@@ -1,6 +1,7 @@
 local M = {}
 
 local ns = vim.api.nvim_create_namespace("ansi-colorize")
+local conceal_group = vim.api.nvim_create_augroup("ansi-colorize-conceal", { clear = false })
 local groups = {}
 local config = {
   overseer = false,
@@ -234,11 +235,22 @@ local function parse_line(line)
   return table.concat(clean), spans, escapes
 end
 
-local function set_conceal_options(bufnr)
+local function set_conceal_options(win)
+  vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
+  vim.api.nvim_set_option_value("concealcursor", "nvic", { win = win })
+end
+
+local function enable_conceal(bufnr)
   for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
-    vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
-    vim.api.nvim_set_option_value("concealcursor", "nvic", { win = win })
+    set_conceal_options(win)
   end
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = conceal_group,
+    buffer = bufnr,
+    callback = function()
+      set_conceal_options(0)
+    end,
+  })
 end
 
 local function valid_buf(bufnr)
@@ -252,6 +264,7 @@ end
 function M.clear(bufnr)
   bufnr = valid_buf(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+  vim.api.nvim_clear_autocmds({ group = conceal_group, buffer = bufnr })
 end
 
 function M.colorize(bufnr, opts)
@@ -275,7 +288,7 @@ function M.colorize(bufnr, opts)
     end
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, clean_lines)
   else
-    set_conceal_options(bufnr)
+    enable_conceal(bufnr)
   end
 
   for line_nr, item in ipairs(parsed) do

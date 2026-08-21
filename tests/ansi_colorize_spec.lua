@@ -51,6 +51,15 @@ assert(has_detail(bufnr, "conceal", ""), "conceal mode should hide escape sequen
 assert_eq(vim.api.nvim_get_option_value("conceallevel", { win = 0 }), 2, "conceallevel is set")
 assert_eq(vim.api.nvim_get_option_value("concealcursor", { win = 0 }), "nvic", "concealcursor is set")
 
+local later_window = vim.api.nvim_create_buf(false, true)
+vim.api.nvim_buf_set_lines(later_window, 0, -1, false, { "\27[31mred\27[0m" })
+ansi.colorize(later_window)
+vim.cmd.tabnew()
+vim.api.nvim_set_option_value("conceallevel", 0, { win = 0 })
+vim.api.nvim_win_set_buf(0, later_window)
+assert_eq(vim.api.nvim_get_option_value("conceallevel", { win = 0 }), 2, "conceallevel is set in later windows")
+vim.cmd.tabclose()
+
 local stripped = new_buf({ "x\27[1;4;38;2;1;2;3mstyled\27[22;24;39my" })
 ansi.strip(stripped)
 assert_eq(vim.api.nvim_buf_get_lines(stripped, 0, -1, false)[1], "xstyledy", "strip removes escapes")
@@ -125,6 +134,9 @@ fake_overseer_util.get_stdout_line_iter = function()
     return vim.tbl_map(fake_overseer_util.clean_job_line, data)
   end
 end
+fake_overseer_util.get_last_output_lines = function()
+  return { "\27[31mlist output\27[0m" }
+end
 package.loaded["overseer.util"] = fake_overseer_util
 local fake_quickfix = {
   constructor = function()
@@ -150,6 +162,7 @@ local ok = require("ansi-colorize.overseer").setup({ mode = "strip", filter = { 
 assert(ok, "overseer setup reports success when overseer is available")
 assert_eq(package.loaded["overseer.util"].clean_job_line("\27[31mred\27[0m\r"), "\27[31mred\27[0m", "overseer setup preserves ansi")
 assert_eq(package.loaded["overseer.util"].get_stdout_line_iter()({ "\27[31mfile.lua:1: error\27[0m\r" })[1], "file.lua:1: error", "overseer parsers receive clean lines")
+assert_eq(package.loaded["overseer.util"].get_last_output_lines()[1], "list output", "overseer list receives clean lines")
 local quickfix_buf = new_buf({ "\27[4:3mfile.lua:1: error\27[0m" })
 local quickfix_task = { get_bufnr = function() return quickfix_buf end }
 local quickfix = package.loaded["overseer.component"].get()

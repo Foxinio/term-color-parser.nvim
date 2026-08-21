@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+cd "$(dirname "$0")/.."
+
+overseer="$PWD/third_party/overseer.nvim"
+if [ ! -f "$overseer/lua/overseer/init.lua" ]; then
+  echo "missing third_party/overseer.nvim; run: git submodule update --init --recursive" >&2
+  exit 1
+fi
+
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/ansi-colorize-overseer.XXXXXX")"
+trap 'rm -rf "$tmp"' EXIT
+chmod 700 "$tmp"
+
+ANSI_COLORIZE_OVERSEER_PATH="$overseer" NVIM_LOG_FILE="$tmp/nvim.log" XDG_RUNTIME_DIR="$tmp" \
+  nvim --clean --headless -l tests/overseer_integration_spec.lua

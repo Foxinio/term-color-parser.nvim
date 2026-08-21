@@ -8,4 +8,4 @@ trap 'rm -rf "$tmp"' EXIT
 chmod 700 "$tmp"
 
 NVIM_LOG_FILE="$tmp/nvim.log" XDG_RUNTIME_DIR="$tmp" \
-  nvim --headless -u NONE -i NONE -c "luafile tests/ansi_colorize_spec.lua" -c qa
+  nvim --headless -u NONE -i NONE -l tests/ansi_colorize_spec.lua

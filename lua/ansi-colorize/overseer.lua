@@ -22,6 +22,7 @@ function M.preserve_overseer_ansi()
 
   local overseer_clean_job_line = util.clean_job_line
   local get_stdout_line_iter = util.get_stdout_line_iter
+  local get_last_output_lines = util.get_last_output_lines
   local function clean_job_line(str)
     return (overseer_clean_job_line(str):gsub("\27%[[%d;:]*m", ""))
   end
@@ -34,6 +35,11 @@ function M.preserve_overseer_ansi()
     local iter = get_stdout_line_iter()
     return function(data)
       return vim.tbl_map(clean_job_line, iter(data))
+    end
+  end
+  if type(get_last_output_lines) == "function" then
+    util.get_last_output_lines = function(...)
+      return vim.tbl_map(clean_job_line, get_last_output_lines(...))
     end
   end
 

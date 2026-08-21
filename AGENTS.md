@@ -19,7 +19,7 @@ Keep Lua modules lowercase and path-based. Prefer adding focused helpers inside
 There is no build step. The plugin is loaded directly by Neovim.
 
 - `make test`: run the headless Neovim integration tests.
-- `sh scripts/test`: run the same tests without relying on `make`.
+- `sh tests/test`: run the same tests without relying on `make`.
 - `nvim --clean +'set rtp+=.' +'AnsiColorize'`: manually load the plugin and
   run the command against the current buffer.
 - Lazy.nvim example:
@@ -40,7 +40,7 @@ the same behavior.
 
 ## Testing Guidelines
 
-Tests are plain Lua files executed by headless Neovim through `scripts/test`.
+Tests are plain Lua files executed by headless Neovim through `tests/test`.
 Add focused assertions for parser behavior, command behavior, Overseer adapter
 behavior, buffer edits, and extmark cleanup. CI runs the same script in
 `.github/workflows/ci.yml`.

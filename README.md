@@ -1,10 +1,11 @@
 # term-color-parser.nvim
 
-Colorize ANSI terminal output in regular Neovim buffers.
+Render ANSI terminal colors as native highlights in ordinary Neovim buffers.
 
 Many CLIs print color with ANSI SGR escape sequences like `\27[31m`. Those
 sequences are useful in a terminal, but they are noisy in normal Neovim buffers.
-This plugin parses them and applies native Neovim highlights.
+This plugin hides or removes the codes while preserving their colors and text
+styles—without a terminal buffer, external process, or runtime dependency.
 
 ## Features
 
@@ -28,13 +29,11 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
-  "OWNER/term-color-parser.nvim",
+  "Foxinio/term-color-parser.nvim",
   cmd = "AnsiColorize",
   config = true,
 }
 ```
-
-Replace `OWNER` with the GitHub owner after publishing the plugin.
 
 ## Configuration
 
@@ -117,20 +116,3 @@ component through Overseer's template hook. It only adds the component to tasks
 created from templates; for every task, add it to
 `component_aliases.default` as shown above. Set `preserve_ansi = false` to keep
 Overseer's default output cleaning.
-
-## Development
-
-Run the integration tests:
-
-```sh
-make test
-```
-
-or:
-
-```sh
-sh scripts/test
-```
-
-The test suite runs in headless Neovim and covers the command, Lua API, parser,
-buffer edits, extmark cleanup, and Overseer adapter.
