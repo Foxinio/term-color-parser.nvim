@@ -3,9 +3,9 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-overseer="$PWD/third_party/overseer.nvim"
+overseer="$PWD/tests/third_party/overseer.nvim"
 if [ ! -f "$overseer/lua/overseer/init.lua" ]; then
-  echo "missing third_party/overseer.nvim; run: git submodule update --init --recursive" >&2
+  echo "missing tests/third_party/overseer.nvim; run: git submodule update --init --recursive" >&2
   exit 1
 fi
 

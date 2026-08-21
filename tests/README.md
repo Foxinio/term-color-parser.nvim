@@ -12,8 +12,8 @@ cleanup, and the mocked Overseer adapter.
 
 ## Overseer integration
 
-Overseer.nvim is pinned in `third_party/overseer.nvim` as a Git submodule. For
-an existing clone, initialize it with:
+Overseer.nvim is pinned in `tests/third_party/overseer.nvim` as a Git submodule.
+For an existing clone, initialize it with:
 
 ```sh
 git submodule update --init --recursive
