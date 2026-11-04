@@ -29,7 +29,8 @@ function M.preserve_overseer_ansi()
 
   util.__ansi_colorize_patched = true
   util.clean_job_line = function(str)
-    return str:gsub("\r$", "")
+    -- Job callbacks encode NUL bytes as newlines; restore them for buffer insertion.
+    return str:gsub("\n", "\0"):gsub("\r$", "")
   end
   util.get_stdout_line_iter = function()
     local iter = get_stdout_line_iter()
