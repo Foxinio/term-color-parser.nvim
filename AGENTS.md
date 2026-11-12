@@ -5,7 +5,9 @@
 This repository contains a pure Lua Neovim plugin for colorizing ANSI SGR
 terminal output in normal buffers.
 
-- `lua/ansi-colorize/` contains the public Lua API and parser/highlighter.
+- `lua/ansi-colorize/` contains the public Lua API and parser/highlighter. The
+  repo is `term-color-parser.nvim`; `lua/term-color-parser/init.lua` only aliases
+  `ansi-colorize` so lazy.nvim's main-module detection works.
 - `lua/overseer/component/` contains optional Overseer.nvim components.
 - `plugin/` registers Neovim commands loaded from `runtimepath`.
 - `tests/` contains headless Neovim regression tests.
@@ -18,14 +20,15 @@ Keep Lua modules lowercase and path-based. Prefer adding focused helpers inside
 
 There is no build step. The plugin is loaded directly by Neovim.
 
-- `make test`: run the headless Neovim integration tests.
-- `sh tests/test`: run the same tests without relying on `make`.
+- `make test`: run the core headless tests (`tests/test`).
+- `make test-overseer` / `sh tests/test-overseer`: Overseer integration tests;
+  need `git submodule update --init` (pinned overseer.nvim) and Neovim 0.11+.
 - `nvim --clean +'set rtp+=.' +'AnsiColorize'`: manually load the plugin and
   run the command against the current buffer.
 - Lazy.nvim example:
 
 ```lua
-{ "yourname/term-color-parser.nvim", cmd = "AnsiColorize", config = true }
+{ "Foxinio/term-color-parser.nvim", cmd = "AnsiColorize", config = true }
 ```
 
 ## Coding Style & Naming Conventions
@@ -42,17 +45,15 @@ the same behavior.
 
 Tests are plain Lua files executed by headless Neovim through `tests/test`.
 Add focused assertions for parser behavior, command behavior, Overseer adapter
-behavior, buffer edits, and extmark cleanup. CI runs the same script in
-`.github/workflows/ci.yml`.
+behavior, buffer edits, and extmark cleanup. CI (`.github/workflows/ci.yml`)
+runs both the core and the Overseer scripts.
 
 Use descriptive test file names such as `tests/ansi_colorize_spec.lua`. Each bug
 fix should include the smallest regression test that would fail without the fix.
 
 ## Commit & Pull Request Guidelines
 
-Git history is not available in this workspace, so no repository-specific style
-can be inferred. Use short, imperative commit subjects, for example
-`Add ANSI reset parsing`.
+Use short, imperative commit subjects, for example `Add ANSI reset parsing`.
 
 Pull requests should include:
 
