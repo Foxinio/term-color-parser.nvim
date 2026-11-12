@@ -28,3 +28,21 @@ assert(util.get_last_output_lines(bufnr, 1)[1] == "list output")
 
 local task = { get_bufnr = function() return bufnr end }
 assert(require("overseer.render").output_lines(task)[1][2][1] == "list output")
+
+local ov = require("ansi-colorize.overseer")
+local noisy = "\27[1;31merror\27[0m\27[K: \27]8;;file:///a.c\7a.c\27]8;;\7 x\27]8;;u\27\\y\27]8;;\27\\"
+assert(ov.strip_non_sgr(noisy) == "\27[1;31merror\27[0m: a.c xy", "non-SGR escapes stripped, colours kept")
+assert(ov.strip_all(noisy) == "error: a.c xy", "all escapes stripped")
+assert(util.clean_job_line(noisy) == "\27[1;31merror\27[0m: a.c xy", "buffer lines keep only colours")
+
+local components = require("overseer.component")
+for _, name in ipairs({ "ansi_colorize", "force_color", "strip_ansi_lines" }) do
+  assert(components.get(name), "component " .. name .. " is available")
+end
+local lines = { noisy }
+components.get("strip_ansi_lines").constructor({}).on_output_lines(nil, nil, lines)
+assert(lines[1] == "error: a.c xy", "strip_ansi_lines removes every escape")
+local task = { env = { TERM = "dumb" } }
+components.get("force_color").constructor({}).on_init(nil, task)
+assert(task.env.TERM == "dumb" and task.env.FORCE_COLOR == "1", "force_color keeps existing env")
+print("overseer integration tests passed")
