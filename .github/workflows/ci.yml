@@ -7,11 +7,16 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        nvim: [v0.11.7, stable]
     steps:
       - uses: actions/checkout@v4
-      - name: Install Neovim
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y neovim
-      - name: Run tests
-        run: sh tests/test
+        with:
+          submodules: true
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.nvim }}
+      - run: make check
