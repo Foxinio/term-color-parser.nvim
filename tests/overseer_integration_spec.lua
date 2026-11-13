@@ -33,7 +33,9 @@ local ov = require("ansi-colorize.overseer")
 local noisy = "\27[1;31merror\27[0m\27[K: \27]8;;file:///a.c\7a.c\27]8;;\7 x\27]8;;u\27\\y\27]8;;\27\\"
 assert(ov.strip_non_sgr(noisy) == "\27[1;31merror\27[0m: a.c xy", "non-SGR escapes stripped, colours kept")
 assert(ov.strip_all(noisy) == "error: a.c xy", "all escapes stripped")
-assert(util.clean_job_line(noisy) == "\27[1;31merror\27[0m: a.c xy", "buffer lines keep only colours")
+assert(util.clean_job_line(noisy) == "\27[1;31merror\27[0m: \27]8;;file:///a.c\7a.c\27]8;;\7 x\27]8;;u\27\\y\27]8;;\27\\",
+  "buffer lines keep SGR and hyperlinks, drop other escapes")
+assert(ov.strip_non_sgr("\27]0;title\7t", true) == "t", "non-link OSC still stripped")
 
 local components = require("overseer.component")
 for _, name in ipairs({ "ansi_colorize", "force_color", "strip_ansi_lines" }) do

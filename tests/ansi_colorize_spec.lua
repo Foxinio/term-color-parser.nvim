@@ -137,6 +137,52 @@ assert(vim.wo.conceallevel == 0 and vim.wo.concealcursor == "", "conceal setting
 local completions = vim.fn.getcompletion("AnsiColorize ", "cmdline")
 assert(vim.tbl_contains(completions, tostring(restored)), "completion lists buffer numbers")
 
+-- OSC 8 hyperlinks become url extmarks (gx / Ctrl-click).
+local function url_marks(bufnr)
+  local found = {}
+  for _, mark in ipairs(marks(bufnr)) do
+    if mark[4].url then
+      found[#found + 1] = { col = mark[3], end_col = mark[4].end_col, url = mark[4].url }
+    end
+  end
+  return found
+end
+local link_line = "see \27]8;id=1;https://neovim.io\7\27[1mneovim\27[0m\27]8;;\7 now"
+local linked = new_buf({ link_line })
+ansi.colorize(linked)
+local links = url_marks(linked)
+assert_eq(#links, 1, "one link extmark")
+assert_eq(links[1].url, "https://neovim.io", "link target with id= param")
+assert_eq(link_line:sub(links[1].col + 1, links[1].end_col):gsub("\27%[[%d;]*m", ""), "neovim", "link covers its text")
+vim.api.nvim_win_set_cursor(0, { 1, links[1].col + 6 })
+assert_eq(require("vim.ui")._get_urls()[1], "https://neovim.io", "gx finds the link under the cursor")
+assert(has_detail(linked, "conceal", ""), "link escapes are concealed")
+ansi.strip(linked)
+assert_eq(vim.api.nvim_buf_get_lines(linked, 0, -1, false)[1], "see neovim now", "strip keeps the link text")
+links = url_marks(linked)
+assert_eq(links[1].col .. "-" .. links[1].end_col, "4-10", "stripped link keeps its url on the clean text")
+
+-- file:// links open in Neovim through links.open_file_keymap.
+local target_file = vim.fn.tempname() .. ".c"
+vim.fn.writefile({ "int a;", "int b;", "int main(void) {}" }, target_file)
+ansi.setup({ links = { open_file_keymap = "gf" } })
+local compiler = new_buf({ "\27]8;;" .. vim.uri_from_fname(target_file) .. "\27\\main.c\27]8;;\27\\:3:5: error: x" })
+ansi.colorize(compiler)
+assert(vim.fn.maparg("gf", "n", false, true).buffer == 1, "open_file_keymap is mapped in the buffer")
+vim.api.nvim_win_set_cursor(0, { 1, url_marks(compiler)[1].col + 1 })
+assert(ansi.open_link(), "file link opens")
+assert_eq(vim.api.nvim_buf_get_name(0), vim.fn.resolve(target_file), "opened the linked file")
+assert_eq(vim.api.nvim_win_get_cursor(0)[1] .. ":" .. vim.api.nvim_win_get_cursor(0)[2], "3:4", "jumped to :line:col after the link text")
+local fragment = new_buf({ "\27]8;;" .. vim.uri_from_fname(target_file) .. "#L2\7here\27]8;;\7" })
+ansi.colorize(fragment)
+vim.api.nvim_win_set_cursor(0, { 1, url_marks(fragment)[1].col })
+assert(ansi.open_link() and vim.api.nvim_win_get_cursor(0)[1] == 2, "#L2 fragment sets the line")
+local web = new_buf({ "\27]8;;https://x\7web\27]8;;\7" })
+ansi.colorize(web)
+vim.api.nvim_win_set_cursor(0, { 1, url_marks(web)[1].col })
+assert(not ansi.open_link(), "non-file links are left to gx")
+ansi.setup({ links = { open_file_keymap = false } })
+
 local preserve_calls = 0
 package.loaded["ansi-colorize.overseer"] = {
   preserve_overseer_ansi = function()
@@ -275,7 +321,17 @@ assert_eq(hl(spans[2][4]).ctermfg, 7, "22 ends dim, the colour stays")
 
 text, spans = decode("x\27[Ky\r\n\27]8;;http://x\7link\27]8;;\7")
 assert_eq(text, "xy\nlink", "other escapes and carriage returns are dropped")
-assert_eq(#spans, 0, "other escapes make no spans")
+assert_eq(#spans, 1, "only the hyperlink makes a span")
+assert_eq(spans[1][5], "http://x", "decoder reports the link target")
+assert_eq(spans[1][1] .. ":" .. spans[1][2] .. "-" .. spans[1][3], "1:0-4", "link span covers the link text")
+assert_eq(spans[1][4], "AnsiColorizeLink", "link spans use the link group")
+
+-- A link cut at a chunk end and spanning chunks.
+local stream = ansi.decoder()
+local _, part1 = stream:feed("see \27]8;;https://ex.am/ple\27\\do")
+local _, part2 = stream:feed("cs\27]8;;\27\\ end")
+assert_eq(part1[1][2] .. "-" .. part1[1][3] .. part2[1][2] .. "-" .. part2[1][3], "4-66-8", "link spans continue across chunks")
+assert_eq(part2[1][5], "https://ex.am/ple", "ST-terminated link target")
 
 local lines
 lines, spans = ansi.decode("\27[31mred\27[0m\nplain")
