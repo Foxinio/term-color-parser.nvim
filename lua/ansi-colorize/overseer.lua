@@ -11,21 +11,32 @@ function M.component(opts)
   return { "ansi_colorize", mode = opts.mode, on = opts.on, preserve_ansi = opts.preserve_ansi }
 end
 
---- Keep SGR sequences (colours and text styles: bold, dim, italic, underline, ...).
---- Remove other CSI sequences (erase-line, cursor movement) and OSC sequences
---- (hyperlinks, window titles), which only a terminal can act on.
-function M.strip_non_sgr(str)
-  return (str
-    :gsub("\27%[[%d;:?<=>]*[ -/]*[@-~]", function(seq)
-      return seq:sub(-1) == "m" and seq or ""
-    end)
-    :gsub("\27%].-\7", "")
-    :gsub("\27%].-\27\\", ""))
+local function strip_osc(str, keep_links)
+  local function osc(seq)
+    return keep_links and seq:match("^\27%]8;") and seq or ""
+  end
+  return (str:gsub("\27%][^\7\27]*\7", osc):gsub("\27%][^\27]*\27\\", osc))
 end
 
---- Remove every ANSI escape sequence, including colours.
+--- Keep SGR sequences (colours and text styles: bold, dim, italic, underline, ...).
+--- Remove other CSI sequences (erase-line, cursor movement) and OSC sequences
+--- (window titles, ...), which only a terminal can act on. OSC 8 hyperlinks are
+--- kept when `keep_links` is true, so the parser can make them clickable.
+---@param keep_links? boolean
+function M.strip_non_sgr(str, keep_links)
+  return strip_osc(str:gsub("\27%[[%d;:?<=>]*[ -/]*[@-~]", function(seq)
+    return seq:sub(-1) == "m" and seq or ""
+  end), keep_links)
+end
+
+--- Remove every ANSI escape sequence, including colours and hyperlinks.
 function M.strip_all(str)
   return (M.strip_non_sgr(str):gsub("\27%[[%d;:]*m", ""))
+end
+
+local function keep_links()
+  local ok, ansi = pcall(require, "ansi-colorize")
+  return ok and ansi.links_enabled()
 end
 
 function M.preserve_overseer_ansi()
@@ -47,8 +58,9 @@ function M.preserve_overseer_ansi()
   util.__ansi_colorize_patched = true
   util.clean_job_line = function(str)
     -- Job callbacks encode NUL bytes as newlines; restore them for buffer insertion.
-    -- Keep SGR codes (colours and text styles) for highlighting; drop other escapes.
-    return (M.strip_non_sgr(str:gsub("\n", "\0"):gsub("\r$", "")))
+    -- Keep SGR codes (colours and text styles) and hyperlinks for the parser;
+    -- drop other escapes.
+    return (M.strip_non_sgr(str:gsub("\n", "\0"):gsub("\r$", ""), keep_links()))
   end
   util.get_stdout_line_iter = function()
     local iter = get_stdout_line_iter()

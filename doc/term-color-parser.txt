@@ -9,6 +9,7 @@ CONTENTS                                      *term-color-parser-contents*
 4. Configuration                        |term-color-parser-configuration|
 5. Lua API                              |term-color-parser-api|
 6. Overseer.nvim                        |term-color-parser-overseer|
+7. Hyperlinks                           |term-color-parser-links|
 
 ==============================================================================
 INTRODUCTION                                  *term-color-parser*
@@ -188,7 +189,8 @@ output cleaning.
 While preserving ANSI, output buffers keep SGR codes (colours and text styles
 such as bold, italic and underline). Other escape sequences only a terminal can
 act on are removed: erase-line and cursor movement codes, and OSC sequences
-such as compiler hyperlinks (the link text is kept) and window titles.
+such as window titles. OSC 8 hyperlinks are kept so they become clickable
+(|term-color-parser-links|); set `links.enabled = false` to strip them too.
 
 Helper components:
 
@@ -198,6 +200,37 @@ Helper components:
   strip_ansi_lines    Removes every escape sequence from lines handed to later
                       components. List it before line parsers such as
                       on_output_quickfix.
+
+==============================================================================
+HYPERLINKS                                    *term-color-parser-links*
+
+OSC 8 hyperlinks ("ESC]8;;URI ST text ESC]8;; ST", ST being BEL or "ESC \")
+keep their text; the escapes are hidden (conceal) or removed (strip). The
+target is stored as an extmark `url`:
+
+- |gx| on the link text opens it with the system handler (|vim.ui.open()|).
+- Terminals that support OSC 8 make it Ctrl/Cmd-clickable too.
+
+Options (in |term-color-parser-configuration| `setup()`):
+>lua
+    links = {
+      enabled = true,          -- false strips links like other escapes
+      open_file_keymap = nil,  -- e.g. "gf": open file:// links in Neovim
+    }
+<
+`open_file_keymap` is buffer-local. On a file:// link it edits the file and
+jumps to the line/column from a "#L12" / "#12:3" fragment or from ":12:3"
+right after the link text. In a floating window it opens in the previous
+window. Elsewhere the key keeps its normal behaviour.
+
+                                              *ansi-colorize.open_link()*
+open_link()      Open the file:// link under the cursor; false if none.
+                                              *ansi-colorize.link_at()*
+link_at({bufnr}, {row}, {col})
+                 URL and end column of the link at the position (default:
+                 cursor).
+
+Link text uses the `AnsiColorizeLink` highlight (default: Underlined).
 
 ==============================================================================
  vim:tw=78:ts=8:noet:ft=help:norl:

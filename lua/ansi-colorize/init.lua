@@ -5,17 +5,32 @@ local conceal_group = vim.api.nvim_create_augroup("ansi-colorize-conceal", { cle
 local groups = {}
 -- `:colorscheme` runs `:hi clear`, which wipes our groups. Redefine them right
 -- away, so text that is already highlighted keeps its colours.
+local function define_link_group()
+  vim.api.nvim_set_hl(0, "AnsiColorizeLink", { link = "Underlined", default = true })
+end
+define_link_group()
 vim.api.nvim_create_autocmd("ColorScheme", {
   group = vim.api.nvim_create_augroup("ansi-colorize-groups", { clear = true }),
   callback = function()
     for name, spec in pairs(groups) do
       vim.api.nvim_set_hl(0, name, spec)
     end
+    define_link_group()
   end,
 })
 local config = {
   overseer = false,
+  links = {
+    -- Turn OSC 8 hyperlinks into `url` extmarks (open with gx / Ctrl-click).
+    enabled = true,
+    -- Buffer-local normal-mode key that opens a file:// link under the cursor
+    -- in Neovim (jumping to :line[:col]); other keys fall back to their
+    -- normal behaviour. nil = no mapping.
+    open_file_keymap = nil,
+  },
 }
+
+local LINK_GROUP = "AnsiColorizeLink"
 
 local ansi16 = {
   "#000000",
@@ -87,6 +102,7 @@ local function copy_state(state)
     underline = state.underline,
     strikethrough = state.strikethrough,
     reverse = state.reverse,
+    url = state.url,
   }
 end
 
@@ -249,7 +265,16 @@ local function parse_line(line, state)
   local pos, clean_col = 1, 0
 
   while true do
+    -- Next SGR sequence or OSC 8 hyperlink (open or close), whichever is first.
     local s, e, params = line:find("\27%[([%d;:]*)m", pos)
+    local os, oe, uri = line:find("\27%]8;[^;\7\27]*;([^\7\27]*)\7", pos)
+    if not os then
+      os, oe, uri = line:find("\27%]8;[^;\7\27]*;([^\7\27]*)\27\\", pos)
+    end
+    local link = false
+    if os and (not s or os < s) then
+      s, e, link = os, oe, true
+    end
     if not s then
       local text = line:sub(pos)
       if text ~= "" then
@@ -279,7 +304,11 @@ local function parse_line(line, state)
     end
 
     escapes[#escapes + 1] = { start_col = s - 1, end_col = e }
-    apply_sgr(state, parse_params(params))
+    if link then
+      state.url = uri ~= "" and uri or nil
+    else
+      apply_sgr(state, parse_params(params))
+    end
     pos = e + 1
   end
 
@@ -335,7 +364,8 @@ function M.decoder()
 end
 
 ---Decode a chunk: its text without escape sequences (`\r` dropped), and the
----highlight spans `{row, start_col, end_col, hl_group}` of that text.
+---highlight spans `{row, start_col, end_col, hl_group}` of that text. OSC 8
+---hyperlinks add spans `{row, start_col, end_col, "AnsiColorizeLink", url}`.
 ---@param chunk string
 ---@return string text, {[1]: integer, [2]: integer, [3]: integer, [4]: string}[] spans
 function Decoder:feed(chunk)
@@ -353,6 +383,14 @@ function Decoder:feed(chunk)
     if group then
       self.open = { col = self.col, group = group }
     end
+  end
+  local function close_link()
+    if self.link and self.col > self.link.col then
+      spans[#spans + 1] = { self.row, self.link.col, self.col, LINK_GROUP, self.link.url }
+    end
+  end
+  local function open_link(url)
+    self.link = url and { col = self.col, url = url } or nil
   end
   local i, n = 1, #s
   while i <= n do
@@ -387,16 +425,23 @@ function Decoder:feed(chunk)
           self.carry = s:sub(i)
           break
         end
+        local uri = s:sub(i, e - 1):match("^\27%]8;[^;]*;(.*)$")
+        if uri and config.links.enabled then
+          close_link()
+          open_link(uri ~= "" and uri or nil)
+        end
         i = e + (e == bel and 1 or 2)
       else
         i = i + 2
       end
     elseif b == 10 then
       close()
+      close_link()
       out[#out + 1] = "\n"
       self.row = self.row + 1
       self.col = 0
       open()
+      open_link(self.link and self.link.url)
       i = i + 1
     elseif b == 13 then
       i = i + 1
@@ -412,6 +457,10 @@ function Decoder:feed(chunk)
   if self.open and self.col > self.open.col then
     spans[#spans + 1] = { self.row, self.open.col, self.col, self.open.group }
     self.open.col = self.col
+  end
+  if self.link and self.col > self.link.col then
+    spans[#spans + 1] = { self.row, self.link.col, self.col, LINK_GROUP, self.link.url }
+    self.link.col = self.col
   end
   return table.concat(out), spans
 end
@@ -441,20 +490,27 @@ function M.strip_text(text)
 end
 
 ---Highlight decoded spans in a buffer, `opts.row` lines down (default 0),
----in this plugin's namespace (`M.ns`), so `clear()` removes them.
+---in this plugin's namespace (`M.ns`), so `clear()` removes them. Link spans
+---get a `url`, so gx (and Ctrl-click in a supporting terminal) opens them.
 ---@param bufnr integer?
 ---@param spans {[1]: integer, [2]: integer, [3]: integer, [4]: string}[]
 ---@param opts? {row?: integer}
 function M.apply(bufnr, spans, opts)
   bufnr = valid_buf(bufnr)
   local row = opts and opts.row or 0
+  local links = false
   for _, span in ipairs(spans) do
     pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, span[1] + row, span[2], {
       end_row = span[1] + row,
       end_col = span[3],
       hl_group = span[4],
-      priority = 200,
+      url = span[5],
+      priority = span[5] and 199 or 200,
     })
+    links = links or span[5] ~= nil
+  end
+  if links then
+    M.map_open_file(bufnr)
   end
 end
 
@@ -474,6 +530,73 @@ function M.clear(bufnr)
   end
 end
 
+---The OSC 8 link target under the cursor (or at `row`/`col`, 0-based), and
+---the link's extmark end column.
+---@return string? url, integer? end_col
+function M.link_at(bufnr, row, col)
+  bufnr = valid_buf(bufnr)
+  if not row then
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    row, col = cursor[1] - 1, cursor[2]
+  end
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns, { row, col }, { row, col }, {
+    details = true,
+    overlap = true,
+  })
+  for _, mark in ipairs(marks) do
+    if mark[4].url then
+      return mark[4].url, mark[4].end_col
+    end
+  end
+end
+
+---Open the file:// link under the cursor in Neovim. The line (and column) come
+---from the URI fragment (`#L12`, `#12`, `#12:3`) or from `:12:3` right after
+---the link text, as compilers print it. Returns false when there is no
+---file:// link under the cursor.
+---@return boolean opened
+function M.open_link()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local url, end_col = M.link_at(bufnr)
+  if not url or not url:match("^file://") then
+    return false
+  end
+  local path, fragment = url:match("^([^#]*)#?(.*)$")
+  local lnum, col = fragment:match("^L?(%d+)[:,C]?(%d*)")
+  if not lnum and end_col then
+    local row = vim.api.nvim_win_get_cursor(0)[1] - 1
+    local rest = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
+    -- In conceal mode the closing escape still sits between the text and ":12".
+    lnum, col = M.strip_text(rest:sub(end_col + 1)):match("^:(%d+):?(%d*)")
+  end
+  local file = vim.uri_to_fname(path)
+  -- Don't replace the content of a floating task window.
+  if vim.api.nvim_win_get_config(0).relative ~= "" then
+    vim.cmd.wincmd("p")
+  end
+  vim.cmd.edit(vim.fn.fnameescape(file))
+  if lnum then
+    local line = math.min(tonumber(lnum), vim.api.nvim_buf_line_count(0))
+    pcall(vim.api.nvim_win_set_cursor, 0, { line, math.max(0, (tonumber(col) or 1) - 1) })
+  end
+  return true
+end
+
+---Map `links.open_file_keymap` in `bufnr` (once): open a file:// link under the
+---cursor in Neovim, otherwise run the key's normal behaviour.
+function M.map_open_file(bufnr)
+  local key = config.links.open_file_keymap
+  if not key or vim.b[bufnr].ansi_colorize_link_key == key then
+    return
+  end
+  vim.b[bufnr].ansi_colorize_link_key = key
+  vim.keymap.set("n", key, function()
+    if not M.open_link() then
+      vim.api.nvim_feedkeys(vim.keycode(key), "n", false)
+    end
+  end, { buffer = bufnr, desc = "Open file:// link under cursor" })
+end
+
 function M.colorize(bufnr, opts)
   bufnr = valid_buf(bufnr)
   opts = opts or {}
@@ -484,6 +607,7 @@ function M.colorize(bufnr, opts)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local parsed = {}
   local state = {}
+  local has_links = false
 
   for i, line in ipairs(lines) do
     local clean, spans, escapes = parse_line(line, state)
@@ -518,20 +642,38 @@ function M.colorize(bufnr, opts)
       end
     end
     for _, span in ipairs(item.spans) do
+      local start_col = strip and span.clean_start or span.source_start
+      local end_col = strip and span.clean_end or span.source_end
       local group = hl_group(span.state)
       if group then
-        vim.api.nvim_buf_set_extmark(bufnr, ns, line_nr - 1, strip and span.clean_start or span.source_start, {
-          end_col = strip and span.clean_end or span.source_end,
+        vim.api.nvim_buf_set_extmark(bufnr, ns, line_nr - 1, start_col, {
+          end_col = end_col,
           hl_group = group,
           priority = 200,
         })
       end
+      if span.state.url and config.links.enabled then
+        has_links = true
+        vim.api.nvim_buf_set_extmark(bufnr, ns, line_nr - 1, start_col, {
+          end_col = end_col,
+          hl_group = LINK_GROUP,
+          url = span.state.url,
+          priority = 199,
+        })
+      end
     end
+  end
+  if has_links then
+    M.map_open_file(bufnr)
   end
 end
 
 function M.strip(bufnr)
   M.colorize(bufnr, { strip = true })
+end
+
+function M.links_enabled()
+  return config.links.enabled ~= false
 end
 
 function M.setup(opts)

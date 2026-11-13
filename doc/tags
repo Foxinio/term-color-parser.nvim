@@ -5,6 +5,8 @@ ansi-colorize.clear()	term-color-parser.txt	/*ansi-colorize.clear()*
 ansi-colorize.colorize()	term-color-parser.txt	/*ansi-colorize.colorize()*
 ansi-colorize.decode()	term-color-parser.txt	/*ansi-colorize.decode()*
 ansi-colorize.decoder()	term-color-parser.txt	/*ansi-colorize.decoder()*
+ansi-colorize.link_at()	term-color-parser.txt	/*ansi-colorize.link_at()*
+ansi-colorize.open_link()	term-color-parser.txt	/*ansi-colorize.open_link()*
 ansi-colorize.setup()	term-color-parser.txt	/*ansi-colorize.setup()*
 ansi-colorize.strip()	term-color-parser.txt	/*ansi-colorize.strip()*
 ansi-colorize.strip_text()	term-color-parser.txt	/*ansi-colorize.strip_text()*
@@ -13,6 +15,7 @@ term-color-parser-api	term-color-parser.txt	/*term-color-parser-api*
 term-color-parser-commands	term-color-parser.txt	/*term-color-parser-commands*
 term-color-parser-configuration	term-color-parser.txt	/*term-color-parser-configuration*
 term-color-parser-contents	term-color-parser.txt	/*term-color-parser-contents*
+term-color-parser-links	term-color-parser.txt	/*term-color-parser-links*
 term-color-parser-overseer	term-color-parser.txt	/*term-color-parser-overseer*
 term-color-parser-requirements	term-color-parser.txt	/*term-color-parser-requirements*
 term-color-parser.nvim	term-color-parser.txt	/*term-color-parser.nvim*

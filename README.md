@@ -116,6 +116,37 @@ local lines, spans = ansi.decode(text) -- a whole text at once
 ansi.strip_text(text)                  -- a string without escape sequences
 ```
 
+## Hyperlinks
+
+Programs such as gcc (`-fdiagnostics-urls`), `ls --hyperlink` and rustc wrap
+text in OSC 8 hyperlinks: `ESC]8;;URI ST text ESC]8;; ST` (ST is BEL or
+`ESC \`). The link text stays visible and the escapes are hidden (conceal) or
+removed (strip). The target is stored as an extmark `url`, so:
+
+- `gx` (built in, Neovim 0.10+) on the link text opens it with the system
+  handler (browser, file manager).
+- Terminals that support OSC 8 (kitty, WezTerm, iTerm2, GNOME Terminal, …)
+  also make it Ctrl/Cmd-clickable, because Neovim re-emits the link.
+
+To open `file://` links inside Neovim instead, set a buffer-local key:
+
+```lua
+require("ansi-colorize").setup({
+  links = {
+    enabled = true,           -- default
+    open_file_keymap = "gf",  -- opt-in; other keys/links fall back to normal behaviour
+  },
+})
+```
+
+The key opens the file and jumps to the line (and column) from a `#L12` /
+`#12:3` URI fragment or from `:12:3` right after the link text, as compilers
+print it. From a floating window it opens in the previous window. On text that
+isn't a `file://` link the key does what it normally does (e.g. `gf`).
+`require("ansi-colorize").open_link()` and `link_at()` are available for your
+own mappings. Link text is highlighted with `AnsiColorizeLink` (linked to
+`Underlined`).
+
 ## Overseer.nvim
 
 For all Overseer tasks, add the component to Overseer's default alias:
@@ -149,7 +180,8 @@ Overseer's default output cleaning.
 While preserving ANSI, output buffers keep SGR codes (colours and text styles
 such as bold, italic and underline). Other escape sequences only a terminal can
 act on are removed: erase-line and cursor movement codes, and OSC sequences
-such as compiler hyperlinks (the link text is kept) and window titles.
+such as window titles. OSC 8 hyperlinks are kept so they become clickable (see
+Hyperlinks); set `links.enabled = false` to strip them too.
 
 Two helper components are also provided:
 
