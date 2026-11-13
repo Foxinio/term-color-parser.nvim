@@ -181,3 +181,80 @@ hooks[1].callback(task_defn, {
 })
 assert_eq(task_defn.components[1][1], "ansi_colorize", "overseer setup injects component")
 assert_eq(task_defn.components[1].mode, "strip", "overseer setup forwards mode")
+
+-- streaming decoder and string API
+local function decode(...)
+  local d = ansi.decoder()
+  local text, spans = "", {}
+  for _, chunk in ipairs({ ... }) do
+    local t, s = d:feed(chunk)
+    text = text .. t
+    vim.list_extend(spans, s)
+  end
+  return text, spans
+end
+
+local function hl(group)
+  return vim.api.nvim_get_hl(0, { name = group })
+end
+
+local function span_eq(span, row, start_col, end_col, label)
+  assert_eq(string.format("%d:%d-%d", span[1], span[2], span[3]), string.format("%d:%d-%d", row, start_col, end_col), label)
+end
+
+local text, spans = decode("* \27[1;34mabc1234\27[m - \27[32mmsg\27[m\n")
+assert_eq(text, "* abc1234 - msg\n", "decoder returns plain text")
+assert_eq(#spans, 2, "decoder returns one span per coloured run")
+span_eq(spans[1], 0, 2, 9, "first span")
+span_eq(spans[2], 0, 12, 15, "second span")
+assert_eq(hl(spans[1][4]).bold, true, "decoder spans are bold")
+assert_eq(hl(spans[1][4]).ctermfg, 4, "16 colours set the terminal palette index")
+
+text, spans = decode("\27[33mone\ntw", "o\27[m three")
+assert_eq(text, "one\ntwo three", "state carries across lines and chunks")
+span_eq(spans[1], 0, 0, 3, "colour on the first line")
+span_eq(spans[2], 1, 0, 2, "colour continued on the next line")
+span_eq(spans[3], 1, 2, 3, "colour continued by the next chunk")
+assert_eq(spans[1][4], spans[3][4], "one group across chunks")
+
+text, spans = decode("a\27[3", "1mred\27", "[0m")
+assert_eq(text, "ared", "escape cut off at a chunk end waits for the rest")
+span_eq(spans[1], 0, 1, 4, "span after a split escape")
+
+_, spans = decode("\27[38;5;208mo\27[38;2;1;2;3mt\27[44;39mb\27[49;22mn")
+assert_eq(#spans, 3, "256 colours, truecolor and backgrounds")
+assert_eq(hl(spans[1][4]).ctermfg, 208, "256 colours set ctermfg")
+assert_eq(hl(spans[2][4]).fg, 0x010203, "truecolor sets fg")
+assert_eq(hl(spans[2][4]).ctermfg, nil, "truecolor has no ctermfg")
+assert_eq(hl(spans[3][4]).ctermbg, 4, "backgrounds set ctermbg")
+
+_, spans = decode("\27[2;37mdim\27[22mnot")
+assert_eq(#spans, 2, "dim is a style of its own")
+assert(hl(spans[1][4]).fg < 0xe5e5e5, "dim darkens the colour")
+assert_eq(hl(spans[2][4]).ctermfg, 7, "22 ends dim, the colour stays")
+
+text, spans = decode("x\27[Ky\r\n\27]8;;http://x\7link\27]8;;\7")
+assert_eq(text, "xy\nlink", "other escapes and carriage returns are dropped")
+assert_eq(#spans, 0, "other escapes make no spans")
+
+local lines
+lines, spans = ansi.decode("\27[31mred\27[0m\nplain")
+assert_eq(table.concat(lines, "|"), "red|plain", "decode splits lines")
+assert_eq(#spans, 1, "decode returns spans")
+
+assert_eq(ansi.strip_text("plain"), "plain", "strip_text keeps plain text")
+assert_eq(ansi.strip_text("\27[1;31ma\27[mb \27[Kc"), "ab c", "strip_text removes escapes")
+
+local applied = new_buf(lines)
+ansi.apply(applied, spans)
+assert_eq(#marks(applied), 1, "apply highlights spans in the plugin namespace")
+ansi.apply(applied, spans, { row = 1 })
+assert_eq(marks(applied)[2][2], 1, "apply offsets rows")
+ansi.clear(applied)
+assert_eq(#marks(applied), 0, "clear removes applied spans")
+
+text, spans = decode("\27[32mok\27[0m")
+vim.cmd("hi clear")
+vim.api.nvim_exec_autocmds("ColorScheme", {})
+_, spans = decode("\27[32mok\27[0m")
+assert_eq(hl(spans[1][4]).ctermfg, 2, "groups come back after a colorscheme change")

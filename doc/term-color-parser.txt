@@ -28,8 +28,10 @@ Features:
 - Conceal mode keeps ANSI codes in the buffer, hides them, and highlights text.
 - Strip mode removes ANSI codes and highlights the cleaned text.
 - Optional Overseer.nvim component for task output buffers.
-- Supports reset, bold, italic, underline styles and colors, strikethrough,
-  reverse, 16-color, 256-color, and truecolor SGR sequences.
+- Supports reset, bold, dim, italic, underline styles and colors,
+  strikethrough, reverse, 16-color, 256-color, and truecolor SGR sequences.
+  16 and 256 colors also set the terminal palette index (ctermfg/ctermbg).
+- A streaming decoder for output that arrives in chunks, and string helpers.
 
 ==============================================================================
 REQUIREMENTS                                  *term-color-parser-requirements*
@@ -113,6 +115,46 @@ strip({bufnr})
                                                        *ansi-colorize.clear()*
 clear({bufnr})
         Remove plugin highlights from {bufnr}.
+
+Plugins that fill a buffer themselves (a job streaming output, say) can
+decode the text before it goes in, so the buffer only ever holds plain text.
+Spans are `{row, start_col, end_col, hl_group}`, rows from 0, byte columns.
+
+                                                     *ansi-colorize.decoder()*
+decoder()
+        Return a decoder for one stream of text. Its `:feed({chunk})` returns
+        the chunk's text without escape sequences (carriage returns dropped)
+        and the spans of that text. SGR state carries across chunks and lines,
+        and an escape sequence cut off at the end of a chunk is completed by
+        the next one. Rows and columns count from the start of the stream.
+>
+          local d = ansi.decoder()
+          -- for each chunk of output:
+          local text, spans = d:feed(chunk)
+          -- append `text` at row R of the buffer, then:
+          ansi.apply(bufnr, spans)
+<
+        Rows of spans count from where the stream starts; when the stream
+        starts below row 0 of the buffer, pass that row to |ansi-colorize.apply()|.
+
+                                                      *ansi-colorize.decode()*
+decode({text})
+        Decode a whole {text}: return its lines without escape sequences and
+        their spans.
+
+                                                  *ansi-colorize.strip_text()*
+strip_text({text})
+        Return {text} without escape sequences (CSI, OSC and two-byte
+        escapes), e.g. for a notification.
+
+                                                       *ansi-colorize.apply()*
+apply({bufnr}, {spans}, {opts})
+        Highlight {spans} in {bufnr}, in this plugin's namespace
+        (`require("ansi-colorize").ns`), so |ansi-colorize.clear()| removes
+        them.
+
+        Supported options:
+        - row: added to the row of each span. Default 0.
 
 ==============================================================================
 OVERSEER.NVIM                                 *term-color-parser-overseer*

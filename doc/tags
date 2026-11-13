@@ -1,9 +1,13 @@
 :AnsiColorize	term-color-parser.txt	/*:AnsiColorize*
 :AnsiColorize!	term-color-parser.txt	/*:AnsiColorize!*
+ansi-colorize.apply()	term-color-parser.txt	/*ansi-colorize.apply()*
 ansi-colorize.clear()	term-color-parser.txt	/*ansi-colorize.clear()*
 ansi-colorize.colorize()	term-color-parser.txt	/*ansi-colorize.colorize()*
+ansi-colorize.decode()	term-color-parser.txt	/*ansi-colorize.decode()*
+ansi-colorize.decoder()	term-color-parser.txt	/*ansi-colorize.decoder()*
 ansi-colorize.setup()	term-color-parser.txt	/*ansi-colorize.setup()*
 ansi-colorize.strip()	term-color-parser.txt	/*ansi-colorize.strip()*
+ansi-colorize.strip_text()	term-color-parser.txt	/*ansi-colorize.strip_text()*
 term-color-parser	term-color-parser.txt	/*term-color-parser*
 term-color-parser-api	term-color-parser.txt	/*term-color-parser-api*
 term-color-parser-commands	term-color-parser.txt	/*term-color-parser-commands*
