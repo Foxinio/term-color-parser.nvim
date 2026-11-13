@@ -23,7 +23,7 @@ styles—without a terminal buffer, external process, or runtime dependency.
 
 ## Requirements
 
-- Neovim 0.9 or newer.
+- Neovim 0.9 or newer (the Overseer integration is tested on 0.11+).
 - `conceallevel` support for non-destructive conceal mode.
 
 ## Installation
@@ -54,9 +54,21 @@ require("ansi-colorize").setup({
     preserve_ansi = true, -- keep ANSI until this plugin colorizes it
     mode = "conceal", -- "conceal" or "strip"
     on = "output",    -- "output" or "complete"
+    filter = {},      -- Overseer template hook filter, e.g. { module = "^make$" }
+    enabled = true,   -- false skips the Overseer integration entirely
   },
 })
 ```
+
+With a lazily loaded plugin (`cmd = "AnsiColorize"`), Overseer only finds the
+`ansi_colorize`, `force_color` and `strip_ansi_lines` components after the
+plugin has loaded. Make it a dependency of overseer.nvim, or call `setup` from
+overseer's config, if Overseer tasks use them.
+
+Colour state carries across lines like in a terminal, and highlights are
+re-applied after `:colorscheme`. `clear()` restores the window's
+`conceallevel`/`concealcursor`. Strip mode temporarily makes nomodifiable
+buffers modifiable; it refuses terminal buffers.
 
 ## Usage
 

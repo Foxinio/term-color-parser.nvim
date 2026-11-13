@@ -3,11 +3,14 @@ local M = {}
 local ns = vim.api.nvim_create_namespace("ansi-colorize")
 local conceal_group = vim.api.nvim_create_augroup("ansi-colorize-conceal", { clear = false })
 local groups = {}
--- `:colorscheme` clears highlight groups: define them again on next use
+-- `:colorscheme` runs `:hi clear`, which wipes our groups. Redefine them right
+-- away, so text that is already highlighted keeps its colours.
 vim.api.nvim_create_autocmd("ColorScheme", {
   group = vim.api.nvim_create_augroup("ansi-colorize-groups", { clear = true }),
   callback = function()
-    groups = {}
+    for name, spec in pairs(groups) do
+      vim.api.nvim_set_hl(0, name, spec)
+    end
   end,
 })
 local config = {
@@ -138,6 +141,18 @@ local function apply_sgr(state, params)
       state.fg, state.ctermfg = color16(p - 90 + 8), p - 90 + 8
     elseif p >= 100 and p <= 107 then
       state.bg, state.ctermbg = color16(p - 100 + 8), p - 100 + 8
+    elseif (p == 38 or p == 48 or p == 58) and params[i + 1] == 2 and params._colon and params._colon[i]
+        and params._colon[i + 1] and params._colon[i + 2] and params._colon[i + 3] and params._colon[i + 4] then
+      -- ITU T.416 form with a colour-space id: 38:2:<cs>:r:g:b (the id is often empty).
+      local color = string.format("#%02x%02x%02x", params[i + 3] % 256, params[i + 4] % 256, params[i + 5] % 256)
+      if p == 38 then
+        state.fg, state.ctermfg = color, nil
+      elseif p == 48 then
+        state.bg, state.ctermbg = color, nil
+      else
+        state.sp = color
+      end
+      i = i + 5
     elseif (p == 38 or p == 48 or p == 58) and params[i + 1] == 5 then
       local index = params[i + 2]
       local color = color256(index or -1)
@@ -205,7 +220,7 @@ local function hl_group(state)
   local key = state_key(state):gsub("[^%w_]", "")
   local name = "AnsiColorize_" .. key
   if not groups[name] then
-    vim.api.nvim_set_hl(0, name, {
+    local spec = {
       fg = state.dim and dimmed(state.fg) or state.fg,
       bg = state.bg,
       ctermfg = state.ctermfg,
@@ -220,15 +235,17 @@ local function hl_group(state)
       underdashed = state.underline == "dashed",
       strikethrough = state.strikethrough,
       reverse = state.reverse,
-    })
-    groups[name] = true
+    }
+    vim.api.nvim_set_hl(0, name, spec)
+    groups[name] = spec
   end
   return name
 end
 
-local function parse_line(line)
+-- `state` carries SGR attributes from previous lines, like a terminal does.
+local function parse_line(line, state)
   local spans, escapes = {}, {}
-  local clean, state = {}, {}
+  local clean = {}
   local pos, clean_col = 1, 0
 
   while true do
@@ -270,6 +287,13 @@ local function parse_line(line)
 end
 
 local function set_conceal_options(win)
+  win = win == 0 and vim.api.nvim_get_current_win() or win
+  if vim.w[win].ansi_colorize_saved_conceal == nil then
+    vim.w[win].ansi_colorize_saved_conceal = {
+      vim.api.nvim_get_option_value("conceallevel", { win = win }),
+      vim.api.nvim_get_option_value("concealcursor", { win = win }),
+    }
+  end
   vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
   vim.api.nvim_set_option_value("concealcursor", "nvic", { win = win })
 end
@@ -440,17 +464,29 @@ function M.clear(bufnr)
   bufnr = valid_buf(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
   vim.api.nvim_clear_autocmds({ group = conceal_group, buffer = bufnr })
+  for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+    local saved = vim.w[win].ansi_colorize_saved_conceal
+    if saved then
+      vim.api.nvim_set_option_value("conceallevel", saved[1], { win = win })
+      vim.api.nvim_set_option_value("concealcursor", saved[2], { win = win })
+      vim.w[win].ansi_colorize_saved_conceal = nil
+    end
+  end
 end
 
 function M.colorize(bufnr, opts)
   bufnr = valid_buf(bufnr)
   opts = opts or {}
   local strip = opts.strip == true
+  if strip and vim.bo[bufnr].buftype == "terminal" then
+    error("ansi-colorize: strip mode cannot edit terminal buffers; use conceal mode")
+  end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local parsed = {}
+  local state = {}
 
   for i, line in ipairs(lines) do
-    local clean, spans, escapes = parse_line(line)
+    local clean, spans, escapes = parse_line(line, state)
     parsed[i] = { clean = clean, spans = spans, escapes = escapes }
   end
 
@@ -461,7 +497,12 @@ function M.colorize(bufnr, opts)
     for i, item in ipairs(parsed) do
       clean_lines[i] = item.clean
     end
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, clean_lines)
+    -- Task output buffers (e.g. Overseer's) are usually nomodifiable.
+    local modifiable = vim.bo[bufnr].modifiable
+    vim.bo[bufnr].modifiable = true
+    local ok, err = pcall(vim.api.nvim_buf_set_lines, bufnr, 0, -1, false, clean_lines)
+    vim.bo[bufnr].modifiable = modifiable
+    if not ok then error(err) end
   else
     enable_conceal(bufnr)
   end

@@ -97,6 +97,46 @@ local command_bang = new_buf({ "\27[34mblue\27[0m" })
 vim.cmd("AnsiColorize!")
 assert_eq(vim.api.nvim_buf_get_lines(command_bang, 0, -1, false)[1], "blue", "bang command strips current buffer")
 
+-- Colours survive :colorscheme (which runs :hi clear).
+local survives = new_buf({ "\27[38;2;1;2;3mrgb\27[0m" })
+ansi.colorize(survives)
+vim.cmd("hi clear")
+vim.api.nvim_exec_autocmds("ColorScheme", {})
+assert(has_highlight(survives, "fg", 0x010203), "highlights are redefined after :colorscheme")
+
+-- SGR state carries over to following lines.
+local multiline = new_buf({ "\27[31mstart", "continued", "end\27[0m", "plain" })
+ansi.colorize(multiline)
+local rows = {}
+for _, mark in ipairs(marks(multiline)) do
+  if mark[4].hl_group then rows[mark[2]] = true end
+end
+assert(rows[0] and rows[1] and rows[2] and not rows[3], "colour continues across lines until reset")
+
+-- ITU colon form with an empty colour-space id.
+local itu = new_buf({ "\27[38:2::1:2:3mitu\27[0m" })
+ansi.colorize(itu)
+assert(has_highlight(itu, "fg", 0x010203), "38:2::r:g:b is parsed")
+
+-- Strip works on nomodifiable buffers and restores the flag.
+local locked = new_buf({ "\27[31mlocked\27[0m" })
+vim.bo[locked].modifiable = false
+ansi.strip(locked)
+assert_eq(vim.api.nvim_buf_get_lines(locked, 0, -1, false)[1], "locked", "strip edits nomodifiable buffers")
+assert(vim.bo[locked].modifiable == false, "strip restores modifiable")
+
+-- clear() restores the window's conceal settings.
+local restored = new_buf({ "\27[31mx\27[0m" })
+vim.wo.conceallevel, vim.wo.concealcursor = 0, ""
+ansi.colorize(restored)
+assert(vim.wo.conceallevel == 2, "conceal enabled")
+ansi.clear(restored)
+assert(vim.wo.conceallevel == 0 and vim.wo.concealcursor == "", "conceal settings restored")
+
+-- Completion offers buffer numbers.
+local completions = vim.fn.getcompletion("AnsiColorize ", "cmdline")
+assert(vim.tbl_contains(completions, tostring(restored)), "completion lists buffer numbers")
+
 local preserve_calls = 0
 package.loaded["ansi-colorize.overseer"] = {
   preserve_overseer_ansi = function()
