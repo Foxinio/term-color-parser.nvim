@@ -133,3 +133,16 @@ component through Overseer's template hook. It only adds the component to tasks
 created from templates; for every task, add it to
 `component_aliases.default` as shown above. Set `preserve_ansi = false` to keep
 Overseer's default output cleaning.
+
+While preserving ANSI, output buffers keep SGR codes (colours and text styles
+such as bold, italic and underline). Other escape sequences only a terminal can
+act on are removed: erase-line and cursor movement codes, and OSC sequences
+such as compiler hyperlinks (the link text is kept) and window titles.
+
+Two helper components are also provided:
+
+- `force_color`: sets `CLICOLOR`, `CLICOLOR_FORCE`, `CMAKE_COLOR_DIAGNOSTICS`,
+  `FORCE_COLOR`, `GTEST_COLOR`, `PY_COLORS` and `TERM` (existing task env wins),
+  so tools emit colours even though output is not a terminal.
+- `strip_ansi_lines`: removes every escape sequence from lines handed to later
+  components. List it before line parsers such as `on_output_quickfix`.

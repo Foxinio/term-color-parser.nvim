@@ -11,6 +11,23 @@ function M.component(opts)
   return { "ansi_colorize", mode = opts.mode, on = opts.on, preserve_ansi = opts.preserve_ansi }
 end
 
+--- Keep SGR sequences (colours and text styles: bold, dim, italic, underline, ...).
+--- Remove other CSI sequences (erase-line, cursor movement) and OSC sequences
+--- (hyperlinks, window titles), which only a terminal can act on.
+function M.strip_non_sgr(str)
+  return (str
+    :gsub("\27%[[%d;:?<=>]*[ -/]*[@-~]", function(seq)
+      return seq:sub(-1) == "m" and seq or ""
+    end)
+    :gsub("\27%].-\7", "")
+    :gsub("\27%].-\27\\", ""))
+end
+
+--- Remove every ANSI escape sequence, including colours.
+function M.strip_all(str)
+  return (M.strip_non_sgr(str):gsub("\27%[[%d;:]*m", ""))
+end
+
 function M.preserve_overseer_ansi()
   -- ponytail: Overseer has no buffer-only ANSI hook; remove this patch if it adds one.
   local ok, util = pcall(require, "overseer.util")
@@ -24,13 +41,14 @@ function M.preserve_overseer_ansi()
   local get_stdout_line_iter = util.get_stdout_line_iter
   local get_last_output_lines = util.get_last_output_lines
   local function clean_job_line(str)
-    return (overseer_clean_job_line(str):gsub("\27%[[%d;:]*m", ""))
+    return (M.strip_non_sgr(overseer_clean_job_line(str)):gsub("\27%[[%d;:]*m", ""))
   end
 
   util.__ansi_colorize_patched = true
   util.clean_job_line = function(str)
     -- Job callbacks encode NUL bytes as newlines; restore them for buffer insertion.
-    return str:gsub("\n", "\0"):gsub("\r$", "")
+    -- Keep SGR codes (colours and text styles) for highlighting; drop other escapes.
+    return (M.strip_non_sgr(str:gsub("\n", "\0"):gsub("\r$", "")))
   end
   util.get_stdout_line_iter = function()
     local iter = get_stdout_line_iter()
