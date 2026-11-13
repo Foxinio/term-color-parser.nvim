@@ -15,8 +15,11 @@ styles—without a terminal buffer, external process, or runtime dependency.
 - Conceal mode: keep ANSI codes in the buffer but hide them and highlight text.
 - Strip mode: remove ANSI codes from the buffer and highlight the cleaned text.
 - Optional Overseer.nvim component for task output buffers.
-- Supports reset, bold, italic, underline styles and colors, strikethrough,
-  reverse, 16-color, 256-color, and truecolor SGR sequences.
+- Supports reset, bold, dim, italic, underline styles and colors,
+  strikethrough, reverse, 16-color, 256-color, and truecolor SGR sequences;
+  16 and 256 colors also set the terminal palette index (`ctermfg`/`ctermbg`).
+- A streaming decoder and string helpers for plugins that fill buffers
+  themselves.
 
 ## Requirements
 
@@ -86,6 +89,20 @@ ansi.clear(0)    -- remove plugin highlights
 ```
 
 `0`, `nil`, or an omitted buffer number means the current buffer.
+
+For output that arrives in chunks (a job's stdout, say), decode it before it
+goes into the buffer, so the buffer only holds plain text:
+
+```lua
+local d = ansi.decoder()
+-- for each chunk:
+local text, spans = d:feed(chunk) -- text without escapes, spans {row, col, end_col, group}
+-- append `text` to the buffer, then:
+ansi.apply(bufnr, spans)          -- { row = n } when the stream starts at row n
+
+local lines, spans = ansi.decode(text) -- a whole text at once
+ansi.strip_text(text)                  -- a string without escape sequences
+```
 
 ## Overseer.nvim
 
